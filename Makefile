@@ -6,8 +6,8 @@ RM=rm -fv
 .PHONY: all clean
 all: chip8
 %.o: %.c %.h
-			$(CC) $(CFLAGS) -c -o $@ $<
+		$(CC) $(CFLAGS) -c -o $@ $<
 chip8: main.c cpu.c
-	  $(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LDLIBS)
+		$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LDLIBS)
 clean:
-	  $(RM) *.o
+		$(RM) *.o

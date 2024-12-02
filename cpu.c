@@ -15,8 +15,8 @@ uint8 fonts[5 * 16] = {
     0xF0, 0x80, 0xF0, 0xF0, 0x80, 0xF0, 0x80, 0x80};
 
 void reset(cpu_t *cpu) {
-  cpu->i_register = 0;
   cpu->program_counter = START_ADDRESS;
+  cpu->i_register = 0;
   cpu->stack_pointer = 0;
   cpu->delay_timer = 0;
   cpu->sound_timer = 0;
@@ -25,12 +25,14 @@ void reset(cpu_t *cpu) {
   memset(cpu->stack, 0, sizeof(cpu->stack));
   memset(cpu->memory, 0, sizeof(cpu->memory));
   memset(cpu->keypad, 0, sizeof(cpu->keypad));
+  memset(cpu->video, 0, sizeof(cpu->video));
   memcpy(cpu->memory, fonts, sizeof(fonts));
 }
 
 int load_rom(cpu_t *cpu, const char *path) {
+  int i = 0;
   long rom_file_size = 0;
-  unsigned long byte_read = 0;
+  unsigned long bytes_read = 0;
   FILE *rom_file;
 
   rom_file = fopen(path, "rb");
@@ -43,14 +45,19 @@ int load_rom(cpu_t *cpu, const char *path) {
   rom_file_size = ftell(rom_file);
   rewind(rom_file);
 
-  byte_read = fread(cpu->memory + START_ADDRESS, 1, rom_file_size, rom_file);
+  bytes_read = fread(cpu->memory + START_ADDRESS, 1, rom_file_size, rom_file);
 
-  if (byte_read == -1) {
+  if (bytes_read != rom_file_size) {
     fclose(rom_file);
     return -1;
   }
 
   fclose(rom_file);
+
+  for (; i < rom_file_size; i++) {
+    printf("0x%X\n", cpu->memory[START_ADDRESS + i]);
+  }
+
   return 0;
 }
 
@@ -79,16 +86,16 @@ nibble_t _decode(uint16 opcode) {
 nibble_t _fetch(cpu_t *cpu) {
   uint16 opcode = 0;
   uint16 high = cpu->memory[cpu->program_counter];
-  uint16 low = cpu->memory[cpu->program_counter + 2];
-  cpu->program_counter += 2;
+  uint16 low = cpu->memory[cpu->program_counter + 1];
   opcode = (high << 8) | low;
   return _decode(opcode);
 }
 
 void tick(cpu_t *cpu) {
   nibble_t op = _fetch(cpu);
-  cpu->opcode = op;
+  /*cpu->opcode = op;*/
   execute(cpu, op);
+  cpu->program_counter += 2;
 }
 
 void tick_timers(cpu_t *cpu) {
@@ -104,12 +111,14 @@ void tick_timers(cpu_t *cpu) {
 }
 
 void execute(cpu_t *cpu, nibble_t op) {
+  printf("0x%X, PC:%d\n", op.opcode, cpu->program_counter);
   switch (op.t) {
   case 0x0:
-    if (op.nn == 0xE0) {
+    if (op.nnn == 0x0E0) {
       /* CLS */
+      printf("Cleared screen");
       memset(cpu->video, 0, sizeof(cpu->video));
-    } else if (op.nn == 0xEE) {
+    } else if (op.nnn == 0x0EE) {
       /* RET */
       cpu->program_counter = pop_stack(cpu);
     }
@@ -196,6 +205,7 @@ void execute(cpu_t *cpu, nibble_t op) {
       _shl(cpu, op);
       break;
     }
+    break;
 
   case 0x9:
     /* SNE Vx, Vy*/
@@ -212,9 +222,18 @@ void execute(cpu_t *cpu, nibble_t op) {
     /* JP V0, addr */
     cpu->program_counter = cpu->registers[0] + op.nnn;
     break;
+
   case 0xC:
     /* RND Vx, byte */
     _rnd(cpu, op);
+    break;
+
+  case 0xD:
+    /* DRW Vx, Vy, nibble */
+    _drw(cpu, op);
+    break;
+    /*case 0xE:*/
+
   default:
     printf("Unsupported opcode 0x%X\n", op.opcode);
   }
@@ -222,9 +241,6 @@ void execute(cpu_t *cpu, nibble_t op) {
 
 void _add(cpu_t *cpu, nibble_t op) {
   uint16 res = cpu->registers[op.x] + op.nn;
-  if (res > 255)
-    res = 0;
-
   cpu->registers[op.x] = res;
 }
 
@@ -238,12 +254,12 @@ void _add_with_carry(cpu_t *cpu, nibble_t op) {
 }
 
 void _sub_with_carry(cpu_t *cpu, nibble_t op) {
-  uint16 res = cpu->registers[op.x] - cpu->registers[op.y];
   if (cpu->registers[op.x] > cpu->registers[op.y])
     cpu->registers[0xF] = 1;
   else
     cpu->registers[0xF] = 0;
-  cpu->registers[op.x] = res;
+
+  cpu->registers[op.x] -= cpu->registers[op.y];
 }
 
 void _shr(cpu_t *cpu, nibble_t op) {
@@ -251,16 +267,16 @@ void _shr(cpu_t *cpu, nibble_t op) {
     cpu->registers[0xF] = 1;
   else
     cpu->registers[0xF] = 0;
-  cpu->registers[op.x] /= 2;
+  cpu->registers[op.x] >>= 1;
 }
 
 void _subn_with_carry(cpu_t *cpu, nibble_t op) {
-  uint16 res = cpu->registers[op.y] - cpu->registers[op.x];
   if (cpu->registers[op.y] > cpu->registers[op.x])
     cpu->registers[0xF] = 1;
   else
     cpu->registers[0xF] = 0;
-  cpu->registers[op.x] = res;
+
+  cpu->registers[op.x] = cpu->registers[op.y] - cpu->registers[op.x];
 }
 
 void _shl(cpu_t *cpu, nibble_t op) {
@@ -268,10 +284,41 @@ void _shl(cpu_t *cpu, nibble_t op) {
     cpu->registers[0xF] = 1;
   else
     cpu->registers[0xF] = 0;
-  cpu->registers[op.x] *= 2;
+  cpu->registers[op.x] <<= 1;
 }
 
 void _rnd(cpu_t *cpu, nibble_t op) {
   uint8 rd_num = rand() % 256; /* Not the best way to obtain a random */
   cpu->registers[op.x] = rd_num & op.nn;
+}
+
+void _drw(cpu_t *cpu, nibble_t op) {
+  bool collision = FALSE;
+  uint8 x_coord = cpu->registers[op.x];
+  uint8 y_coord = cpu->registers[op.y];
+  uint8 i, j = 0;
+
+  cpu->registers[0xF] = 0;
+
+  for (i = 0; i < op.n; i++) {
+    uint16 addr = cpu->i_register + i;
+    uint8 sprite_row;
+
+    sprite_row = cpu->memory[addr];
+
+    for (j = 0; j < 8; j++) {
+      if ((sprite_row & (0x80 >> j)) != 0) {
+        uint8 x = (x_coord + j) % SCREEN_WIDTH;
+        uint8 y = (y_coord + i) % SCREEN_HEIGHT;
+        uint16 video_index = x + SCREEN_WIDTH * y;
+
+        if (cpu->video[video_index] == TRUE)
+          collision = TRUE;
+
+        cpu->video[video_index] ^= TRUE;
+      }
+    }
+  }
+
+  cpu->registers[0xF] = collision ? 1 : 0;
 }

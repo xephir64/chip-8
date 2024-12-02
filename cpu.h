@@ -8,6 +8,10 @@ typedef signed short int16;
 typedef unsigned long uint32;
 typedef signed long int32;
 
+typedef int bool;
+#define TRUE 1
+#define FALSE 0
+
 #define RAM_SIZE 4096
 #define START_ADDRESS 0x200
 #define SCREEN_WIDTH 64
@@ -29,7 +33,7 @@ typedef struct {
   uint8 memory[RAM_SIZE];
   uint16 stack[16];
   uint8 keypad[16];
-  uint32 video[SCREEN_WIDTH * SCREEN_HEIGHT];
+  bool video[SCREEN_WIDTH * SCREEN_HEIGHT];
   uint16 program_counter;
   uint8 stack_pointer;
   nibble_t opcode;
@@ -55,6 +59,7 @@ void _shr(cpu_t *cpu, nibble_t op);
 void _subn_with_carry(cpu_t *cpu, nibble_t op);
 void _shl(cpu_t *cpu, nibble_t op);
 void _rnd(cpu_t *cpu, nibble_t op);
+void _drw(cpu_t *cpu, nibble_t op);
 
 /* Stack*/
 void push_stack(cpu_t *cpu, uint16 value);
