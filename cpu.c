@@ -30,7 +30,6 @@ void reset(cpu_t *cpu) {
 }
 
 int load_rom(cpu_t *cpu, const char *path) {
-  int i = 0;
   long rom_file_size = 0;
   unsigned long bytes_read = 0;
   FILE *rom_file;
@@ -53,10 +52,6 @@ int load_rom(cpu_t *cpu, const char *path) {
   }
 
   fclose(rom_file);
-
-  for (; i < rom_file_size; i++) {
-    printf("0x%X\n", cpu->memory[START_ADDRESS + i]);
-  }
 
   return 0;
 }
@@ -88,6 +83,7 @@ nibble_t _fetch(cpu_t *cpu) {
   uint16 high = cpu->memory[cpu->program_counter];
   uint16 low = cpu->memory[cpu->program_counter + 1];
   opcode = (high << 8) | low;
+  cpu->program_counter += 2;
   return _decode(opcode);
 }
 
@@ -95,7 +91,6 @@ void tick(cpu_t *cpu) {
   nibble_t op = _fetch(cpu);
   /*cpu->opcode = op;*/
   execute(cpu, op);
-  cpu->program_counter += 2;
 }
 
 void tick_timers(cpu_t *cpu) {
@@ -110,15 +105,18 @@ void tick_timers(cpu_t *cpu) {
   }
 }
 
+void push_key(cpu_t *cpu, uint8 key) { cpu->keypad[key] = TRUE; }
+
+void release_key(cpu_t *cpu, uint8 key) { cpu->keypad[key] = FALSE; }
+
 void execute(cpu_t *cpu, nibble_t op) {
-  printf("0x%X, PC:%d\n", op.opcode, cpu->program_counter);
+  /*printf("0x%X, PC:%d\n", op.opcode, cpu->program_counter);*/
   switch (op.t) {
   case 0x0:
-    if (op.nnn == 0x0E0) {
+    if (op.nn == 0xE0) {
       /* CLS */
-      printf("Cleared screen");
       memset(cpu->video, 0, sizeof(cpu->video));
-    } else if (op.nnn == 0x0EE) {
+    } else if (op.nn == 0xEE) {
       /* RET */
       cpu->program_counter = pop_stack(cpu);
     }
@@ -165,6 +163,9 @@ void execute(cpu_t *cpu, nibble_t op) {
 
   case 0x8:
     switch (op.n) {
+    case 0x0:
+      /* LD Vx, Vy */
+      cpu->registers[op.x] = cpu->registers[op.y];
     case 0x1:
       /* OR Vx, Vy */
       cpu->registers[op.x] = cpu->registers[op.x] | cpu->registers[op.y];
@@ -232,7 +233,51 @@ void execute(cpu_t *cpu, nibble_t op) {
     /* DRW Vx, Vy, nibble */
     _drw(cpu, op);
     break;
-    /*case 0xE:*/
+
+  case 0xE:
+    switch (op.nn) {
+    case 0x9E:
+      if (cpu->keypad[cpu->registers[op.x]] == TRUE)
+        cpu->program_counter += 2;
+      break;
+    case 0xA1:
+      if (cpu->keypad[cpu->registers[op.x]] == FALSE)
+        cpu->program_counter += 2;
+      break;
+    }
+    break;
+
+  case 0xF:
+    switch (op.nn) {
+    case 0x07:
+      cpu->registers[op.x] = cpu->delay_timer;
+      break;
+    case 0x0A:
+      chk_key_pressed(cpu, op);
+      break;
+    case 0x15:
+      cpu->delay_timer = cpu->registers[op.x];
+      break;
+    case 0x18:
+      cpu->sound_timer = cpu->registers[op.x];
+      break;
+    case 0x1E:
+      cpu->i_register += cpu->registers[op.x];
+      break;
+    case 0x29:
+      cpu->i_register = (uint16)(cpu->registers[op.x] * 5);
+      break;
+    case 0x33:
+      _bcd(cpu, op);
+      break;
+    case 0x55:
+      _str_v_to_mem(cpu, op);
+      break;
+    case 0x65:
+      _ld_mem_to_v(cpu, op);
+      break;
+    }
+    break;
 
   default:
     printf("Unsupported opcode 0x%X\n", op.opcode);
@@ -321,4 +366,44 @@ void _drw(cpu_t *cpu, nibble_t op) {
   }
 
   cpu->registers[0xF] = collision ? 1 : 0;
+}
+
+void chk_key_pressed(cpu_t *cpu, nibble_t opcode) {
+  bool pressed = FALSE;
+  int i = 0;
+  for (; i < 16; i++) {
+    if (cpu->keypad[i] == TRUE) {
+      pressed = TRUE;
+      cpu->registers[opcode.x] = cpu->keypad[i];
+      break;
+    }
+  }
+  if (!pressed)
+    cpu->program_counter -= 2;
+}
+
+void _bcd(cpu_t *cpu, nibble_t op) {
+  int vx = cpu->registers[op.x]; /* Cast Vx to float */
+  uint8 hundreds = vx / 100;
+  uint8 tens = (vx / 10) % 10;
+  uint8 ones = vx % 10;
+  cpu->memory[cpu->i_register] = hundreds;
+  cpu->memory[cpu->i_register + 1] = tens;
+  cpu->memory[cpu->i_register + 2] = ones;
+}
+
+void _str_v_to_mem(cpu_t *cpu, nibble_t op) {
+  uint8 i = 0;
+  uint8 x = op.x;
+  for (; i <= x; i++) {
+    cpu->memory[cpu->i_register + i] = cpu->registers[i];
+  }
+}
+
+void _ld_mem_to_v(cpu_t *cpu, nibble_t op) {
+  uint8 i = 0;
+  uint8 x = op.x;
+  for (; i <= x; i++) {
+    cpu->registers[i] = cpu->memory[cpu->i_register + i];
+  }
 }

@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-std=c89 -pedantic -Wall -Werror -g
-LDFLAGS=`pkg-config --libs --cflags sdl`
+LDFLAGS=`pkg-config --libs --cflags sdl` -lm
 LDLIBS=
 RM=rm -fv
 .PHONY: all clean

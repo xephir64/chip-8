@@ -60,6 +60,9 @@ void _subn_with_carry(cpu_t *cpu, nibble_t op);
 void _shl(cpu_t *cpu, nibble_t op);
 void _rnd(cpu_t *cpu, nibble_t op);
 void _drw(cpu_t *cpu, nibble_t op);
+void _bcd(cpu_t *cpu, nibble_t op);
+void _str_v_to_mem(cpu_t *cpu, nibble_t op);
+void _ld_mem_to_v(cpu_t *cpu, nibble_t op);
 
 /* Stack*/
 void push_stack(cpu_t *cpu, uint16 value);
@@ -67,5 +70,11 @@ uint16 pop_stack(cpu_t *cpu);
 
 /* Timers */
 void tick_timers(cpu_t *cpu);
+
+/* Keyboard */
+void push_key(cpu_t *cpu, uint8 key);
+void release_key(cpu_t *cpu, uint8 key);
+void key_press(cpu_t *cpu, uint8 key, bool is_pressed);
+void chk_key_pressed(cpu_t *cpu, nibble_t opcode);
 
 #endif

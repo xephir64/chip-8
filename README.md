@@ -1,6 +1,6 @@
 # CHIP-8 Emulator
 
-CHIP-8 Emulator made using the C89 (ANSI) standard
+CHIP-8 Emulator written in C89 (C ANSI)
 
 ### Library used
 
