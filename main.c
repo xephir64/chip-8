@@ -2,6 +2,7 @@
 #include <SDL/SDL_error.h>
 #include <SDL/SDL_events.h>
 #include <SDL/SDL_keysym.h>
+#include <SDL/SDL_mixer.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -74,6 +75,7 @@ void draw_screen(SDL_Surface *screen, cpu_t *cpu) {
 int main(int argc, char **const argv) {
   SDL_Event event;
   SDL_Surface *screen = NULL;
+  Mix_Chunk *beep;
   cpu_t *cpu = NULL;
   int running = 0;
   uint32_t last_timer_tick;
@@ -83,7 +85,8 @@ int main(int argc, char **const argv) {
     return 1;
   }
 
-  if (SDL_Init(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) < 0) == -1) {
+  if (SDL_Init(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) <
+               0) == -1) {
     fprintf(stderr, "Cannot init SDL: %s", SDL_GetError());
     return 1;
   }
@@ -92,6 +95,20 @@ int main(int argc, char **const argv) {
                             SDL_SWSURFACE);
   if (!screen) {
     fprintf(stderr, "Cannot set video mode: %s\n", SDL_GetError());
+    SDL_Quit();
+    return 1;
+  }
+
+  if (Mix_OpenAudio(22050, AUDIO_S16SYS, 2, 4096) < 0) {
+    fprintf(stderr, "Unable to initialize SDL_mixer: %s\n", Mix_GetError());
+    SDL_Quit();
+    return 1;
+  }
+
+  beep = Mix_LoadWAV("assets/beep.wav");
+  if (!beep) {
+    fprintf(stderr, "Unable to load sound: %s\n", Mix_GetError());
+    Mix_CloseAudio();
     SDL_Quit();
     return 1;
   }
@@ -141,6 +158,10 @@ int main(int argc, char **const argv) {
     if (cpu->draw_flag) {
       draw_screen(screen, cpu);
       cpu->draw_flag = FALSE;
+    }
+
+    if (cpu->sound_timer == 1) {
+      Mix_PlayChannel(-1, beep, 0);
     }
 
     SDL_Delay(1);

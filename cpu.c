@@ -99,9 +99,6 @@ void tick_timers(cpu_t *cpu) {
     cpu->delay_timer -= 1;
   }
   if (cpu->sound_timer > 0) {
-    if (cpu->sound_timer == 1) {
-      /* Beep */
-    }
     cpu->sound_timer -= 1;
   }
 }

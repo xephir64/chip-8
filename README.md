@@ -4,7 +4,7 @@ CHIP-8 Emulator written in C89 (C ANSI)
 
 ### Library used
 
-- SDL
+- SDL (+ SDL_Mixer)
 
 ### Resources used
 
