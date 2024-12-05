@@ -39,6 +39,7 @@ typedef struct {
   nibble_t opcode;
   uint8 delay_timer;
   uint8 sound_timer;
+  bool draw_flag;
 } cpu_t;
 
 /* Init CPU */

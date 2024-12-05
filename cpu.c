@@ -20,6 +20,7 @@ void reset(cpu_t *cpu) {
   cpu->stack_pointer = 0;
   cpu->delay_timer = 0;
   cpu->sound_timer = 0;
+  cpu->draw_flag = FALSE;
 
   memset(cpu->registers, 0, sizeof(cpu->registers));
   memset(cpu->stack, 0, sizeof(cpu->stack));
@@ -116,6 +117,7 @@ void execute(cpu_t *cpu, nibble_t op) {
     if (op.nn == 0xE0) {
       /* CLS */
       memset(cpu->video, 0, sizeof(cpu->video));
+      cpu->draw_flag = TRUE;
     } else if (op.nn == 0xEE) {
       /* RET */
       cpu->program_counter = pop_stack(cpu);
@@ -232,6 +234,7 @@ void execute(cpu_t *cpu, nibble_t op) {
   case 0xD:
     /* DRW Vx, Vy, nibble */
     _drw(cpu, op);
+    cpu->draw_flag = TRUE;
     break;
 
   case 0xE:
@@ -290,33 +293,23 @@ void _add(cpu_t *cpu, nibble_t op) {
 }
 
 void _add_with_carry(cpu_t *cpu, nibble_t op) {
-  uint16 res = cpu->registers[op.x] + cpu->registers[op.y];
-  if (res > 255)
-    cpu->registers[0xF] = 1;
-  else
-    cpu->registers[0xF] = 0;
+  int res = cpu->registers[op.x] + cpu->registers[op.y];
+  cpu->registers[0xF] = (res > 255) ? 1 : 0;
   cpu->registers[op.x] = res & 0xFF;
 }
 
 void _sub_with_carry(cpu_t *cpu, nibble_t op) {
-  if (cpu->registers[op.x] > cpu->registers[op.y])
-    cpu->registers[0xF] = 1;
-  else
-    cpu->registers[0xF] = 0;
-
-  cpu->registers[op.x] -= cpu->registers[op.y];
+  cpu->registers[0xF] = (cpu->registers[op.x] >= cpu->registers[op.y]) ? 1 : 0;
+  cpu->registers[op.x] = (cpu->registers[op.x] - cpu->registers[op.y]) & 0xFF;
 }
 
 void _shr(cpu_t *cpu, nibble_t op) {
-  if (cpu->registers[op.x] & 1)
-    cpu->registers[0xF] = 1;
-  else
-    cpu->registers[0xF] = 0;
+  cpu->registers[0xF] = cpu->registers[op.x] & 1;
   cpu->registers[op.x] >>= 1;
 }
 
 void _subn_with_carry(cpu_t *cpu, nibble_t op) {
-  if (cpu->registers[op.y] > cpu->registers[op.x])
+  if (cpu->registers[op.y] >= cpu->registers[op.x])
     cpu->registers[0xF] = 1;
   else
     cpu->registers[0xF] = 0;
@@ -325,10 +318,7 @@ void _subn_with_carry(cpu_t *cpu, nibble_t op) {
 }
 
 void _shl(cpu_t *cpu, nibble_t op) {
-  if ((cpu->registers[op.x] >> 7) & 1)
-    cpu->registers[0xF] = 1;
-  else
-    cpu->registers[0xF] = 0;
+  cpu->registers[0xF] = (cpu->registers[op.x] >> 7) & 1;
   cpu->registers[op.x] <<= 1;
 }
 

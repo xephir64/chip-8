@@ -1,12 +1,51 @@
 #include <SDL/SDL.h>
 #include <SDL/SDL_error.h>
 #include <SDL/SDL_events.h>
+#include <SDL/SDL_keysym.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "cpu.h"
 
 #define SCALE 8
+
+#define TIMER_INTERVAL_MS 16
+
+uint8 get_key(SDLKey key) {
+  if (key == SDLK_1)
+    return 0x1;
+  if (key == SDLK_2)
+    return 0x2;
+  if (key == SDLK_3)
+    return 0x3;
+  if (key == SDLK_4)
+    return 0xC;
+  if (key == SDLK_a)
+    return 0x4;
+  if (key == SDLK_z)
+    return 0x5;
+  if (key == SDLK_e)
+    return 0x6;
+  if (key == SDLK_r)
+    return 0xD;
+  if (key == SDLK_q)
+    return 0x7;
+  if (key == SDLK_s)
+    return 0x8;
+  if (key == SDLK_d)
+    return 0x9;
+  if (key == SDLK_f)
+    return 0xE;
+  if (key == SDLK_w)
+    return 0xA;
+  if (key == SDLK_x)
+    return 0x0;
+  if (key == SDLK_c)
+    return 0xB;
+  if (key == SDLK_v)
+    return 0xF;
+  return 0;
+}
 
 void draw_screen(SDL_Surface *screen, cpu_t *cpu) {
   int x, y;
@@ -37,13 +76,14 @@ int main(int argc, char **const argv) {
   SDL_Surface *screen = NULL;
   cpu_t *cpu = NULL;
   int running = 0;
+  uint32_t last_timer_tick;
 
   if (argc != 2) {
     fprintf(stderr, "Usage: %s rom_file_path\n", argv[0]);
     return 1;
   }
 
-  if (SDL_Init(SDL_INIT_VIDEO) == -1) {
+  if (SDL_Init(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) < 0) == -1) {
     fprintf(stderr, "Cannot init SDL: %s", SDL_GetError());
     return 1;
   }
@@ -71,117 +111,18 @@ int main(int argc, char **const argv) {
   }
 
   running = 1;
+  last_timer_tick = SDL_GetTicks();
 
   while (running) {
+    uint32_t now = 0;
+
     while (SDL_PollEvent(&event)) {
       switch (event.type) {
       case SDL_KEYDOWN:
-        switch (event.key.keysym.sym) {
-        case SDLK_1:
-          push_key(cpu, 0x1);
-          break;
-        case SDLK_2:
-          push_key(cpu, 0x2);
-          break;
-        case SDLK_3:
-          push_key(cpu, 0x3);
-          break;
-        case SDLK_4:
-          push_key(cpu, 0xC);
-          break;
-        case SDLK_a:
-          push_key(cpu, 0x4);
-          break;
-        case SDLK_z:
-          push_key(cpu, 0x5);
-          break;
-        case SDLK_e:
-          push_key(cpu, 0x6);
-          break;
-        case SDLK_r:
-          push_key(cpu, 0xD);
-          break;
-        case SDLK_q:
-          push_key(cpu, 0x7);
-          break;
-        case SDLK_s:
-          push_key(cpu, 0x8);
-          break;
-        case SDLK_d:
-          push_key(cpu, 0x9);
-          break;
-        case SDLK_f:
-          push_key(cpu, 0xE);
-          break;
-        case SDLK_w:
-          push_key(cpu, 0xA);
-          break;
-        case SDLK_x:
-          push_key(cpu, 0x0);
-          break;
-        case SDLK_c:
-          push_key(cpu, 0xB);
-          break;
-        case SDLK_v:
-          push_key(cpu, 0xF);
-          break;
-        default:
-          break;
-        }
+        push_key(cpu, get_key(event.key.keysym.sym));
         break;
       case SDL_KEYUP:
-        switch (event.key.keysym.sym) {
-        case SDLK_1:
-          release_key(cpu, 0x1);
-          break;
-        case SDLK_2:
-          release_key(cpu, 0x2);
-          break;
-        case SDLK_3:
-          release_key(cpu, 0x3);
-          break;
-        case SDLK_4:
-          release_key(cpu, 0xC);
-          break;
-        case SDLK_a:
-          release_key(cpu, 0x4);
-          break;
-        case SDLK_z:
-          release_key(cpu, 0x5);
-          break;
-        case SDLK_e:
-          release_key(cpu, 0x6);
-          break;
-        case SDLK_r:
-          release_key(cpu, 0xD);
-          break;
-        case SDLK_q:
-          release_key(cpu, 0x7);
-          break;
-        case SDLK_s:
-          release_key(cpu, 0x8);
-          break;
-        case SDLK_d:
-          release_key(cpu, 0x9);
-          break;
-        case SDLK_f:
-          release_key(cpu, 0xE);
-          break;
-        case SDLK_w:
-          release_key(cpu, 0xA);
-          break;
-        case SDLK_x:
-          release_key(cpu, 0x0);
-          break;
-        case SDLK_c:
-          release_key(cpu, 0xB);
-          break;
-        case SDLK_v:
-          release_key(cpu, 0xF);
-          break;
-        default:
-          break;
-        }
+        release_key(cpu, get_key(event.key.keysym.sym));
         break;
       case SDL_QUIT:
         running = 0;
@@ -190,10 +131,19 @@ int main(int argc, char **const argv) {
     }
 
     tick(cpu);
-    tick_timers(cpu);
-    draw_screen(screen, cpu);
 
-    SDL_Delay(16);
+    now = SDL_GetTicks();
+    if (now - last_timer_tick >= TIMER_INTERVAL_MS) {
+      tick_timers(cpu);
+      last_timer_tick = now;
+    }
+
+    if (cpu->draw_flag) {
+      draw_screen(screen, cpu);
+      cpu->draw_flag = FALSE;
+    }
+
+    SDL_Delay(1);
   }
 
   SDL_Quit();
